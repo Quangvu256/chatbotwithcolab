@@ -1,15 +1,16 @@
 #!/bin/bash
 # ==============================================================================
-# ChatBotColab — Startup Script
+# ChatBotColab — Startup Script (Vertex AI Edition)
 # ==============================================================================
 # Khởi chạy cả Backend (FastAPI) và Frontend (Streamlit) trong cùng container.
+# Không cần GPU — LLM inference qua Vertex AI API.
 # ==============================================================================
 
 set -e
 
 echo ""
 echo "============================================================"
-echo "🚀 ChatBotColab — Khởi động hệ thống..."
+echo "🚀 ChatBotColab — Khởi động hệ thống (Vertex AI Edition)"
 echo "============================================================"
 echo ""
 
@@ -18,17 +19,17 @@ echo "🔧 [1/2] Khởi chạy Backend (FastAPI) trên port ${BACKEND_PORT:-8000
 python3 backend.py &
 BACKEND_PID=$!
 
-# Đợi backend sẵn sàng (tối đa 10 phút vì model loading rất lâu)
-echo "⏳ Đang đợi Backend sẵn sàng (model loading có thể mất 5-10 phút)..."
-MAX_WAIT=600
+# Đợi backend sẵn sàng (tối đa 2 phút — nhanh hơn nhiều vì không load model)
+echo "⏳ Đang đợi Backend sẵn sàng..."
+MAX_WAIT=120
 WAITED=0
 while [ $WAITED -lt $MAX_WAIT ]; do
     if curl -sf http://localhost:${BACKEND_PORT:-8000}/health > /dev/null 2>&1; then
         echo "✅ Backend đã sẵn sàng!"
         break
     fi
-    sleep 5
-    WAITED=$((WAITED + 5))
+    sleep 3
+    WAITED=$((WAITED + 3))
     echo "   ... đã đợi ${WAITED}s / ${MAX_WAIT}s"
 done
 

@@ -1,8 +1,8 @@
 """
-ChatBotColab — Standalone Backend Server
-=========================================
-Converted from backend.ipynb for production deployment on GCP.
-Removes all Google Colab and Ngrok dependencies.
+ChatBotColab — Standalone Backend Server (Vertex AI Edition)
+=============================================================
+Production deployment on GCP using Gemini API via Vertex AI.
+No GPU required — all LLM inference is handled by Google Cloud.
 
 Usage:
     python backend.py
@@ -14,8 +14,6 @@ Endpoints:
 """
 
 import os
-import shutil
-import torch
 from pathlib import Path
 
 from sentence_transformers import CrossEncoder
@@ -24,7 +22,9 @@ from langchain_experimental.text_splitter import SemanticChunker
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from dotenv import load_dotenv
-from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline, BitsAndBytesConfig
+
+from google import genai
+from google.genai import types
 
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
@@ -38,7 +38,9 @@ load_dotenv()
 
 DATABASE_PATH = os.getenv("DATABASE_PATH", "./data/vector_db")
 DOC_PATH = os.getenv("DOC_PATH", "")
-HF_TOKEN = os.getenv("HF_TOKEN", "")
+GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID", "")
+GCP_LOCATION = os.getenv("GCP_LOCATION", "us-central1")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 BACKEND_HOST = os.getenv("BACKEND_HOST", "0.0.0.0")
 BACKEND_PORT = int(os.getenv("BACKEND_PORT", "8000"))
 
@@ -59,13 +61,11 @@ class SmartKnowledgeBuilder:
     def __init__(self, db_path=DATABASE_PATH):
         self.db_path = db_path
 
-        # Auto-detect GPU/CPU
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-
+        # Embedding chạy trên CPU (model nhỏ, không cần GPU)
         print("📥 [1/2] Đang tải mô hình Vector Embedding...")
         self.embedding_model = HuggingFaceEmbeddings(
             model_name="bkai-foundation-models/vietnamese-bi-encoder",
-            model_kwargs={"device": device},
+            model_kwargs={"device": "cpu"},
         )
 
         print("🕵️ [2/2] Đang tải mô hình Reranker (Thám tử chấm điểm)...")
@@ -140,66 +140,56 @@ class SmartKnowledgeBuilder:
 
 
 # ==========================================
-# 3. ADVANCED REASONING AGENT (LLM + ToT)
+# 3. ADVANCED REASONING AGENT (Vertex AI Gemini + ToT)
 # ==========================================
 class AdvancedReasoningAgent:
     """
-    Lõi suy luận: Gemma-2-27B (4-bit) + Tree of Thought + Self-Reflection.
+    Lõi suy luận: Gemini 2.0 Flash (via Vertex AI) + Tree of Thought + Self-Reflection.
+    Không cần GPU — gọi API qua Google Cloud.
     """
 
-    def __init__(self, hf_token):
-        print(
-            "🧠 [LLM] Đang tải mô hình hạng nặng (14B-27B) với công nghệ Lượng tử hóa 4-bit..."
-        )
-        self.hf_token = hf_token
-        if not self.hf_token:
-            print("⚠️ Cảnh báo: Không tìm thấy HF_TOKEN trong két sắt!")
+    def __init__(self, project_id, location="us-central1", model_name="gemini-2.0-flash"):
+        print(f"🧠 [LLM] Kết nối Gemini API qua Vertex AI...")
+        print(f"   → Project: {project_id}")
+        print(f"   → Location: {location}")
+        print(f"   → Model: {model_name}")
 
-        model_id = "google/gemma-2-27b-it"
-
-        self.tokenizer = AutoTokenizer.from_pretrained(model_id, token=self.hf_token)
-
-        bnb_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_use_double_quant=True,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=torch.bfloat16,
+        self.model_name = model_name
+        self.client = genai.Client(
+            vertexai=True,
+            project=project_id,
+            location=location,
         )
 
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_id,
-            quantization_config=bnb_config,
-            device_map="auto",
-            token=self.hf_token,
-        )
+        # Test kết nối
+        try:
+            test_response = self.client.models.generate_content(
+                model=self.model_name,
+                contents="Xin chào, trả lời ngắn gọn: 1+1=?",
+                config=types.GenerateContentConfig(
+                    max_output_tokens=50,
+                    temperature=0.0,
+                ),
+            )
+            print(f"✅ [LLM] Kết nối Gemini thành công! Test: {test_response.text.strip()}")
+        except Exception as e:
+            print(f"⚠️ [LLM] Cảnh báo: Không thể kết nối Gemini: {e}")
 
-        self.pipe = pipeline(
-            "text-generation", model=self.model, tokenizer=self.tokenizer
-        )
-        print(f"✅ [LLM] Tải thành công mô hình {model_id} (Đã nén 4-bit)!")
-
-    def _call_llm(self, prompt, temperature=0.1, max_new_tokens=2048):
-        """Hàm helper để gọi pipeline cực kỳ 'sạch', không có Warning"""
-        messages = [{"role": "user", "content": prompt}]
-        prompt_formatted = self.tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
-        )
-
-        gen_kwargs = {
-            "max_new_tokens": max_new_tokens,
-            "pad_token_id": self.tokenizer.eos_token_id,
-            "return_full_text": False,
-        }
-
-        if temperature > 0.0:
-            gen_kwargs["do_sample"] = True
-            gen_kwargs["temperature"] = temperature
-        else:
-            gen_kwargs["do_sample"] = False
-
-        outputs = self.pipe(prompt_formatted, **gen_kwargs)
-
-        return outputs[0]["generated_text"].strip()
+    def _call_llm(self, prompt, temperature=0.1, max_output_tokens=2048):
+        """Gọi Gemini API qua Vertex AI"""
+        try:
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    max_output_tokens=max_output_tokens,
+                    temperature=temperature,
+                ),
+            )
+            return response.text.strip()
+        except Exception as e:
+            print(f"❌ [LLM] Lỗi khi gọi Gemini: {e}")
+            return f"Lỗi khi gọi mô hình: {str(e)}"
 
     # ==========================================
     # LOGIC 1: TREE OF THOUGHT (Tư duy cục bộ)
@@ -217,7 +207,7 @@ class AdvancedReasoningAgent:
         for i, t in enumerate(thoughts):
             prompt = f"Ngữ cảnh: {context}\nCâu hỏi: {query}\nHướng giải quyết: '{t}'\nĐánh giá hướng này có đúng ngữ cảnh không. Chấm điểm (1-10). Chỉ xuất ra 1 con số nguyên."
             score_text = self._call_llm(
-                prompt, temperature=0.0, max_new_tokens=1024
+                prompt, temperature=0.0, max_output_tokens=10
             )
             try:
                 score = int("".join(filter(str.isdigit, score_text)))
@@ -246,7 +236,7 @@ class AdvancedReasoningAgent:
         for i, chunk in enumerate(chunks_list):
             prompt_map = f"Đọc đoạn tài liệu sau:\n{chunk}\n\nHãy tóm tắt ngắn gọn các ý chính liên quan đến: '{global_query}'."
             summary = self._call_llm(
-                prompt_map, temperature=0.1, max_new_tokens=2048
+                prompt_map, temperature=0.1, max_output_tokens=2048
             )
             partial_summaries.append(summary)
             print(f"  -> Đã tóm tắt phần {i+1}/{len(chunks_list)}")
@@ -259,7 +249,7 @@ class AdvancedReasoningAgent:
         prompt_reduce = f"Dưới đây là các bản tóm tắt từ nhiều phần của một tài liệu lớn:\n{combined_text}\n\nDựa trên các thông tin trên, hãy viết một câu trả lời hoàn chỉnh, mạch lạc cho yêu cầu: '{global_query}'."
 
         final_answer = self._call_llm(
-            prompt_reduce, temperature=0.3, max_new_tokens=2048
+            prompt_reduce, temperature=0.3, max_output_tokens=2048
         )
         return final_answer
 
@@ -268,17 +258,21 @@ class AdvancedReasoningAgent:
 # 4. KHỞI TẠO CÁC MODULE TOÀN CỤC
 # ==========================================
 print("\n" + "=" * 60)
-print("🚀 KHỞI TẠO HỆ THỐNG CHATBOT COLAB (GCP Production)")
+print("🚀 KHỞI TẠO HỆ THỐNG CHATBOT COLAB (Vertex AI Edition)")
 print("=" * 60 + "\n")
 
 global_knowledge_base = SmartKnowledgeBuilder()
 
 global_agent = None
-if HF_TOKEN:
-    global_agent = AdvancedReasoningAgent(HF_TOKEN)
+if GCP_PROJECT_ID:
+    global_agent = AdvancedReasoningAgent(
+        project_id=GCP_PROJECT_ID,
+        location=GCP_LOCATION,
+        model_name=GEMINI_MODEL,
+    )
 else:
-    print("⚠️ Cảnh báo: Không tìm thấy HF_TOKEN! LLM sẽ không được nạp.")
-    print("   → Hãy đặt HF_TOKEN trong file .env và khởi động lại.")
+    print("⚠️ Cảnh báo: Không tìm thấy GCP_PROJECT_ID! LLM sẽ không hoạt động.")
+    print("   → Hãy đặt GCP_PROJECT_ID trong file .env và khởi động lại.")
 
 # Tự động index tài liệu nếu có DOC_PATH và chưa có DB
 if DOC_PATH and os.path.exists(DOC_PATH) and global_knowledge_base.vector_db is None:
@@ -290,9 +284,9 @@ if DOC_PATH and os.path.exists(DOC_PATH) and global_knowledge_base.vector_db is 
 # 5. FASTAPI APP & ENDPOINTS
 # ==========================================
 app = FastAPI(
-    title="Hệ thống Vistral ToT RAG API",
-    description="AI Chatbot với Tree of Thought reasoning + RAG — Production API",
-    version="2.0.0",
+    title="Hệ thống Vistral ToT RAG API (Vertex AI)",
+    description="AI Chatbot với Tree of Thought reasoning + RAG — Powered by Gemini via Vertex AI",
+    version="3.0.0",
 )
 
 app.add_middleware(
@@ -323,8 +317,8 @@ class IndexResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str
-    gpu_available: bool
-    llm_loaded: bool
+    gemini_connected: bool
+    model_name: str
     vector_db_ready: bool
 
 
@@ -334,8 +328,8 @@ async def health_check():
     """Kiểm tra trạng thái hệ thống"""
     return HealthResponse(
         status="ok",
-        gpu_available=torch.cuda.is_available(),
-        llm_loaded=global_agent is not None,
+        gemini_connected=global_agent is not None,
+        model_name=GEMINI_MODEL,
         vector_db_ready=global_knowledge_base.vector_db is not None,
     )
 
@@ -347,7 +341,7 @@ async def ask_vistral(request: QueryRequest):
         if global_agent is None:
             raise HTTPException(
                 status_code=503,
-                detail="LLM chưa được nạp. Hãy kiểm tra HF_TOKEN trong .env",
+                detail="Gemini API chưa được kết nối. Hãy kiểm tra GCP_PROJECT_ID trong .env",
             )
 
         query = request.question
@@ -433,6 +427,7 @@ if __name__ == "__main__":
     print(f"🔗 API URL:     http://{BACKEND_HOST}:{BACKEND_PORT}/api/v1/ask")
     print(f"📚 Swagger UI:  http://{BACKEND_HOST}:{BACKEND_PORT}/docs")
     print(f"💚 Health:      http://{BACKEND_HOST}:{BACKEND_PORT}/health")
+    print(f"🤖 Model:       {GEMINI_MODEL} (via Vertex AI)")
     print("=" * 60 + "\n")
 
     uvicorn.run(app, host=BACKEND_HOST, port=BACKEND_PORT)

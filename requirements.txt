@@ -1,18 +1,14 @@
 # ==============================================================================
-# ChatBotColab — Python Dependencies
+# ChatBotColab — Python Dependencies (Vertex AI Edition)
 # ==============================================================================
+# No GPU required! All LLM inference via Google Cloud Vertex AI.
 # Install with: pip install -r requirements.txt
-# For GPU support, install PyTorch with CUDA first:
-#   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
 # ==============================================================================
 
-# --- Core LLM ---
-torch>=2.0.0
-transformers>=4.40.0
-bitsandbytes>=0.43.0
-accelerate>=0.30.0
+# --- Gemini API (via Vertex AI) ---
+google-genai>=1.0.0
 
-# --- Embedding & Reranking ---
+# --- Embedding & Reranking (runs on CPU) ---
 sentence-transformers>=2.7.0
 
 # --- RAG Pipeline (LangChain) ---

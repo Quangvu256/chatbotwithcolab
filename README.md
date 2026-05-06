@@ -1,6 +1,6 @@
 # 🤖 ChatBotColab
 
-> **An AI chatbot combining Tree of Thought reasoning with RAG — powered by Gemma-2-27B. Deploy on Google Colab (demo) or GCP with Docker (production).**
+> **An AI chatbot combining Tree of Thought reasoning with RAG — powered by Gemma-3-4B. Deploy on Google Colab (demo) or GCP with Docker (production).**
 
 <p align="center">
   <a href="#-overview">English</a> •
@@ -37,7 +37,7 @@ Two deployment modes:
                                          │  │  backend.py                │  │
                                          │  │  • SmartKnowledgeBuilder   │  │
                                          │  │  • AdvancedReasoningAgent  │  │
-                                         │  │  • Gemma-2-27B (4-bit)     │  │
+                                         │  │  • Gemma-3-4B (4-bit)      │  │
                                          │  └────────────────────────────┘  │
                                          │  Volume: ./data (vector DB)     │
                                          └──────────────────────────────────┘
@@ -57,7 +57,7 @@ Two deployment modes:
 
 | Layer | Technology | Role |
 |---|---|---|
-| **LLM** | `google/gemma-2-27b-it` | Main language model (4-bit quantized via BitsAndBytes NF4) |
+| **LLM** | `google/gemma-3-4b-it` | Main language model (4-bit quantized via BitsAndBytes NF4) |
 | **Embedding** | `bkai-foundation-models/vietnamese-bi-encoder` | Encode documents & queries into vectors (optimized for Vietnamese) |
 | **Reranker** | `BAAI/bge-reranker-v2-m3` | Re-score retrieved chunks for higher relevance |
 | **Vector DB** | ChromaDB | Store and search document embeddings |
@@ -65,7 +65,7 @@ Two deployment modes:
 | **Document Loaders** | PyPDFLoader, TextLoader, Docx2txtLoader | Read `.pdf`, `.txt`, `.docx` files |
 | **API** | FastAPI + Uvicorn | Serve the backend as a REST API |
 | **Frontend** | Streamlit | Chat UI with session history & file upload |
-| **Quantization** | BitsAndBytes | Compress 27B model to fit in a single GPU's VRAM |
+| **Quantization** | BitsAndBytes | Compress 4B model to fit in a single GPU's VRAM |
 | **Container** | Docker + Docker Compose | Reproducible deployment with GPU passthrough |
 | **Runtime** | GCE VM (NVIDIA L4/T4) or Google Colab | GPU for model inference |
 
@@ -133,7 +133,7 @@ User Question
 | Requirement | Purpose |
 |---|---|
 | [Google Cloud](https://console.cloud.google.com/) account with billing | Run GCE VM with GPU |
-| [Hugging Face](https://huggingface.co/settings/tokens) token | Download Gemma-2-27B model |
+| [Hugging Face](https://huggingface.co/settings/tokens) token | Download Gemma-3-4B model |
 | [Docker](https://docs.docker.com/get-docker/) + [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) | Run containerized app with GPU |
 
 #### Step 1 — Create a GCE VM with GPU
@@ -230,7 +230,7 @@ docker compose down            # Stop everything
 
 ## ⚠️ Notes
 
-- The backend takes **5–10 minutes** to initialize (downloading & loading the 27B model)
+- The backend takes **3–5 minutes** to initialize (downloading & loading the 4B model)
 - Each question may take **30–120 seconds** to answer due to the multi-step ToT reasoning
 - You can upload new documents via the Streamlit sidebar (no restart needed)
 - For Colab mode: The Ngrok URL changes every restart — update it in the frontend
@@ -265,7 +265,7 @@ Hai chế độ triển khai:
                                          │  │  backend.py                │  │
                                          │  │  • SmartKnowledgeBuilder   │  │
                                          │  │  • AdvancedReasoningAgent  │  │
-                                         │  │  • Gemma-2-27B (4-bit)     │  │
+                                         │  │  • Gemma-3-4B (4-bit)      │  │
                                          │  └────────────────────────────┘  │
                                          │  Volume: ./data (vector DB)     │
                                          └──────────────────────────────────┘
@@ -313,7 +313,7 @@ Câu hỏi người dùng
 | Yêu cầu | Mục đích |
 |---|---|
 | Tài khoản [Google Cloud](https://console.cloud.google.com/) có billing | Chạy GCE VM với GPU |
-| [Hugging Face](https://huggingface.co/settings/tokens) token | Tải mô hình Gemma-2-27B |
+| [Hugging Face](https://huggingface.co/settings/tokens) token | Tải mô hình Gemma-3-4B |
 | [Docker](https://docs.docker.com/get-docker/) + [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) | Chạy container với GPU |
 
 #### Bước 1 — Tạo VM có GPU trên GCE
@@ -402,7 +402,7 @@ docker compose down            # Dừng hệ thống
 
 ## ⚠️ Lưu Ý
 
-- Backend mất khoảng **5–10 phút** để khởi tạo (tải & nạp mô hình 27B)
+- Backend mất khoảng **3–5 phút** để khởi tạo (tải & nạp mô hình 4B)
 - Mỗi câu hỏi có thể mất **30–120 giây** để trả lời do quy trình ToT nhiều bước
 - Có thể upload tài liệu mới qua giao diện Streamlit (không cần khởi động lại)
 - Chế độ Colab: URL Ngrok thay đổi mỗi lần khởi động lại — nhớ cập nhật ở frontend
