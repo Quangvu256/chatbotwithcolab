@@ -1,6 +1,6 @@
 # 🤖 ChatBotColab
 
-> **An AI chatbot combining Tree of Thought reasoning with RAG — powered by Gemma-2-27B on Google Colab**
+> **An AI chatbot combining Tree of Thought reasoning with RAG — powered by Gemma-2-27B. Deploy on Google Colab (demo) or GCP with Docker (production).**
 
 <p align="center">
   <a href="#-overview">English</a> •
@@ -15,32 +15,42 @@
 
 **ChatBotColab** is an AI assistant that uses **Tree of Thought (ToT)** reasoning and **Retrieval-Augmented Generation (RAG)** to answer questions based on your own documents.
 
-- The **backend** runs entirely on **Google Colab** with a free GPU (A100 / H100), using the **Gemma-2-27B-IT** model compressed to 4-bit via BitsAndBytes.
-- The **frontend** is a **Streamlit** chat interface that runs on your local machine and connects to the backend through an **Ngrok** tunnel.
+Two deployment modes:
+
+| Mode | Runtime | Use Case |
+|---|---|---|
+| **🧪 Colab Demo** | Google Colab + Ngrok | Quick prototyping with free GPU |
+| **🚀 GCP Production** | GCE VM + Docker | Stable, always-on deployment |
 
 ## 🏗️ Architecture
+
+### GCP Production (Docker)
+
+```
+┌───────────────────┐     HTTP :8501     ┌──────────────────────────────────┐
+│  Browser          │ ◄────────────────► │  GCE VM (GPU: NVIDIA L4/T4)     │
+│  (any device)     │                    │  ┌────────────────────────────┐  │
+└───────────────────┘     HTTP :8000     │  │  Docker Container         │  │
+                      ◄────────────────► │  │                            │  │
+                                         │  │  Streamlit UI (:8501)      │  │
+                                         │  │  FastAPI API  (:8000)      │  │
+                                         │  │  backend.py                │  │
+                                         │  │  • SmartKnowledgeBuilder   │  │
+                                         │  │  • AdvancedReasoningAgent  │  │
+                                         │  │  • Gemma-2-27B (4-bit)     │  │
+                                         │  └────────────────────────────┘  │
+                                         │  Volume: ./data (vector DB)     │
+                                         └──────────────────────────────────┘
+```
+
+### Colab Demo (Legacy)
 
 ```
 ┌──────────────────────┐        HTTPS (Ngrok)        ┌─────────────────────────────┐
 │  LOCAL MACHINE       │  ◄────────────────────────►  │  GOOGLE COLAB (GPU)         │
-│                      │      POST /api/v1/ask        │                             │
-│  chatbot.py          │                              │  backend.ipynb              │
-│  ┌────────────────┐  │                              │  ┌───────────────────────┐  │
-│  │ Streamlit UI   │  │                              │  │ FastAPI + Uvicorn     │  │
-│  │ • Chat input   │  │                              │  │                       │  │
-│  │ • Chat history │  │                              │  │ SmartKnowledgeBuilder │  │
-│  │ • ToT viewer   │  │                              │  │ • Vietnamese Encoder  │  │
-│  │ • RAG viewer   │  │                              │  │ • BGE-M3 Reranker     │  │
-│  │ • API config   │  │                              │  │ • ChromaDB            │  │
-│  └────────────────┘  │                              │  │ • Semantic Chunking   │  │
-│                      │                              │  │                       │  │
-│  .env                │                              │  │ AdvancedReasoningAgent│  │
-│  • API_URL           │                              │  │ • Gemma-2-27B (4-bit) │  │
-│  • HF_TOKEN          │                              │  │ • Tree of Thought     │  │
-│  • NGROK_TOKEN       │                              │  │ • Self-Reflection     │  │
-│                      │                              │  │ • Map-Reduce          │  │
-└──────────────────────┘                              │  └───────────────────────┘  │
-                                                      └─────────────────────────────┘
+│  chatbot.py          │      POST /api/v1/ask        │  backend.ipynb              │
+│  (Streamlit UI)      │                              │  (FastAPI + LLM + RAG)      │
+└──────────────────────┘                              └─────────────────────────────┘
 ```
 
 ## 🛠️ Tech Stack
@@ -54,27 +64,29 @@
 | **Chunking** | LangChain `SemanticChunker` | Split documents by meaning, not by fixed size |
 | **Document Loaders** | PyPDFLoader, TextLoader, Docx2txtLoader | Read `.pdf`, `.txt`, `.docx` files |
 | **API** | FastAPI + Uvicorn | Serve the backend as a REST API |
-| **Tunnel** | pyngrok (Ngrok) | Expose the Colab server to the internet |
-| **Frontend** | Streamlit | Chat UI with session history |
+| **Frontend** | Streamlit | Chat UI with session history & file upload |
 | **Quantization** | BitsAndBytes | Compress 27B model to fit in a single GPU's VRAM |
-| **Runtime** | Google Colab (H100 / A100 GPU) | Free GPU for model inference |
+| **Container** | Docker + Docker Compose | Reproducible deployment with GPU passthrough |
+| **Runtime** | GCE VM (NVIDIA L4/T4) or Google Colab | GPU for model inference |
 
 ## 📁 Project Structure
 
 ```
 ChatBotColab/
-├── backend.ipynb   # Google Colab notebook (entire backend)
-│                   #   Cell 1: Mount Google Drive
-│                   #   Cell 2: Install all dependencies
-│                   #   Cell 3: SmartKnowledgeBuilder (RAG engine)
-│                   #   Cell 4: AdvancedReasoningAgent (LLM + ToT)
-│                   #   Cell 5: Load LLM with HF_TOKEN
-│                   #   Cell 6: Define FastAPI endpoints
-│                   #   Cell 7: Process documents into vector DB
-│                   #   Cell 8: Start Ngrok + Uvicorn server
-├── chatbot.py      # Streamlit frontend (local chat interface)
-├── .env            # Environment variables (secrets & config)
-└── .gitignore      # Excludes .env, __pycache__, vector DB, checkpoints
+├── backend.py          # Standalone backend (GCP production)
+├── backend.ipynb       # Google Colab notebook (demo/reference)
+├── chatbot.py          # Streamlit frontend (chat + file upload)
+├── requirements.txt    # Python dependencies
+├── Dockerfile          # Docker image build
+├── docker-compose.yml  # One-command deployment with GPU
+├── startup.sh          # Container entry point
+├── .env                # Environment variables (secrets & config)
+├── .gitignore          # Git exclusions
+├── data/               # (runtime) Vector DB + uploaded documents
+│   ├── vector_db/
+│   ├── documents/
+│   └── uploads/
+└── README.md
 ```
 
 ## 🔄 How It Works
@@ -114,72 +126,99 @@ User Question
 
 ## 🚀 Getting Started
 
-### Prerequisites
+### 🚀 Option A — GCP Production (Docker)
+
+#### Prerequisites
 
 | Requirement | Purpose |
 |---|---|
-| [Google Colab](https://colab.research.google.com/) account | Run backend with free GPU |
+| [Google Cloud](https://console.cloud.google.com/) account with billing | Run GCE VM with GPU |
 | [Hugging Face](https://huggingface.co/settings/tokens) token | Download Gemma-2-27B model |
-| [Ngrok](https://dashboard.ngrok.com/get-started/your-authtoken) auth token | Tunnel Colab to the internet |
-| Python 3.8+ (local) | Run Streamlit frontend |
+| [Docker](https://docs.docker.com/get-docker/) + [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) | Run containerized app with GPU |
 
-### Step 1 — Configure `.env`
+#### Step 1 — Create a GCE VM with GPU
 
-Create a `.env` file in the project root:
+1. Go to **Compute Engine > VM instances > Create Instance**
+2. Configuration:
+   - **Machine type:** `g2-standard-8` (GPU: NVIDIA L4, 24GB VRAM)
+   - **Boot disk:** Deep Learning VM with CUDA 12.x, **100 GB**
+   - **Firewall:** ✅ Allow HTTP, ✅ Allow HTTPS
+3. Add firewall rule for ports `8000` (API) and `8501` (UI):
+   - **VPC Network > Firewall > Create Rule** → TCP: `8000, 8501`, Source: `0.0.0.0/0`
 
-```env
-HF_TOKEN=hf_your_huggingface_token
-NGROK_TOKEN=your_ngrok_auth_token
-GIT_TOKEN=ghp_your_github_token
-DATABASE_PATH=/content/drive/MyDrive/chatbotcolab/my_vector_db
-DOC_PATH=/content/drive/MyDrive/chatbotcolab/your_document.pdf
-API_URL=https://your-url.ngrok-free.dev/api/v1/ask
-```
+#### Step 2 — Setup on the VM
 
-| Variable | Description |
-|---|---|
-| `HF_TOKEN` | Hugging Face access token (to download gated models) |
-| `NGROK_TOKEN` | Ngrok auth token (to create public tunnels) |
-| `GIT_TOKEN` | GitHub personal access token (optional, for version control) |
-| `DATABASE_PATH` | Path to persist the ChromaDB vector database on Google Drive |
-| `DOC_PATH` | Path to the document you want the chatbot to learn from |
-| `API_URL` | The Ngrok public URL of your running backend (updated each session) |
-
-### Step 2 — Run the Backend on Google Colab
-
-1. Upload `backend.ipynb` and `.env` to Google Drive at `/MyDrive/chatbotcolab/`
-2. Open `backend.ipynb` in Google Colab
-3. Change runtime to **GPU** → select **H100** or **A100**
-4. **Run all cells** from top to bottom
-5. Wait for the last cell to print a Ngrok URL like:
-   ```
-   🟢 MÁY CHỦ ĐÃ SẴN SÀNG!
-   🔗 URL Của API: https://xxxx.ngrok-free.dev/api/v1/ask
-   📚 Swagger UI:  https://xxxx.ngrok-free.dev/docs
-   ```
-6. Copy the API URL — you'll need it for the frontend
-
-### Step 3 — Run the Frontend Locally
+SSH into the VM and run:
 
 ```bash
-# Install dependencies
-pip install streamlit requests python-dotenv
+# Clone the repository
+git clone https://github.com/Quangvu256/chatbotwithcolab.git
+cd chatbotwithcolab
 
-# Start the chat interface
-streamlit run chatbot.py
+# Create .env
+cat > .env << 'EOF'
+HF_TOKEN=hf_your_huggingface_token
+DATABASE_PATH=./data/vector_db
+DOC_PATH=./data/documents/your_document.pdf
+API_URL=http://localhost:8000/api/v1/ask
+BACKEND_HOST=0.0.0.0
+BACKEND_PORT=8000
+STREAMLIT_PORT=8501
+EOF
+
+# Put your document in data/documents/
+mkdir -p data/documents
+# Upload your PDF/TXT/DOCX here
 ```
 
-Then either:
-- **Paste the Ngrok URL** into the sidebar text input, or
-- **Set `API_URL`** in your local `.env` file (it auto-loads on startup)
+#### Step 3 — Launch with Docker Compose
 
-### Step 4 — Ask Questions!
+```bash
+docker compose up -d --build
+```
 
-Type your question in the chat box. The AI will:
-1. Search your documents for relevant context
-2. Reason through multiple approaches (Tree of Thought)
-3. Refine the answer (Self-Reflection)
-4. Show you the final answer, plus expandable sections for the reasoning process and retrieved context
+Wait 5-10 minutes for model loading, then access:
+- 🎨 **Chat UI:** `http://<VM_EXTERNAL_IP>:8501`
+- 📚 **API Docs:** `http://<VM_EXTERNAL_IP>:8000/docs`
+- 💚 **Health:** `http://<VM_EXTERNAL_IP>:8000/health`
+
+#### Useful Commands
+
+```bash
+docker compose logs -f        # Watch logs (model loading progress)
+docker compose restart         # Restart services
+docker compose down            # Stop everything
+```
+
+#### 💰 Estimated Cost (GCP)
+
+| Resource | Spec | Cost (approx.) |
+|---|---|---|
+| `g2-standard-8` (1x L4 GPU) | 8 vCPU, 32GB RAM, 24GB VRAM | ~$1.40/hr |
+| Boot disk | 100 GB SSD | ~$17/mo |
+
+> 💡 **Tip:** Use [Spot VMs](https://cloud.google.com/compute/docs/instances/spot) to reduce cost by ~60-70%.
+
+---
+
+### 🧪 Option B — Google Colab (Demo)
+
+> Use `backend.ipynb` for quick demos with free GPU. See the notebook for step-by-step instructions.
+
+1. Upload `backend.ipynb` and `.env` to Google Drive at `/MyDrive/chatbotcolab/`
+2. Open in Colab, set runtime to **GPU (H100/A100)**, run all cells
+3. Copy the Ngrok URL and paste into the Streamlit sidebar
+4. Run `streamlit run chatbot.py` on your local machine
+
+---
+
+## 📡 API Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/health` | System health check (GPU, LLM, DB status) |
+| `POST` | `/api/v1/ask` | Ask a question (ToT + RAG reasoning) |
+| `POST` | `/api/v1/index` | Upload & index a new document (PDF/TXT/DOCX) |
 
 ## 📄 Supported Documents
 
@@ -191,10 +230,10 @@ Type your question in the chat box. The AI will:
 
 ## ⚠️ Notes
 
-- The **Ngrok URL changes every time** you restart the Colab notebook — remember to update it in the frontend
 - The backend takes **5–10 minutes** to initialize (downloading & loading the 27B model)
 - Each question may take **30–120 seconds** to answer due to the multi-step ToT reasoning
-- A **Colab Pro** subscription is recommended for longer runtime and better GPUs
+- You can upload new documents via the Streamlit sidebar (no restart needed)
+- For Colab mode: The Ngrok URL changes every restart — update it in the frontend
 
 ---
 
@@ -204,71 +243,35 @@ Type your question in the chat box. The AI will:
 
 **ChatBotColab** là trợ lý AI sử dụng kỹ thuật **Tree of Thought (Cây Suy Nghĩ)** kết hợp **RAG (Truy Xuất Tăng Cường)** để trả lời câu hỏi dựa trên tài liệu của bạn.
 
-- **Backend** chạy hoàn toàn trên **Google Colab** với GPU miễn phí (A100 / H100), sử dụng mô hình **Gemma-2-27B-IT** nén xuống 4-bit bằng BitsAndBytes.
-- **Frontend** là giao diện chat **Streamlit** chạy trên máy tính cá nhân, kết nối với backend qua đường hầm **Ngrok**.
+Hai chế độ triển khai:
+
+| Chế độ | Môi trường | Mục đích |
+|---|---|---|
+| **🚀 GCP Production** | GCE VM + Docker | Triển khai ổn định, chạy 24/7 |
+| **🧪 Colab Demo** | Google Colab + Ngrok | Prototype nhanh với GPU miễn phí |
 
 ## 🏗️ Kiến Trúc Hệ Thống
 
-```
-┌──────────────────────┐        HTTPS (Ngrok)        ┌─────────────────────────────┐
-│  MÁY CÁ NHÂN        │  ◄────────────────────────►  │  GOOGLE COLAB (GPU)         │
-│                      │      POST /api/v1/ask        │                             │
-│  chatbot.py          │                              │  backend.ipynb              │
-│  ┌────────────────┐  │                              │  ┌───────────────────────┐  │
-│  │ Giao diện      │  │                              │  │ FastAPI + Uvicorn     │  │
-│  │ Streamlit      │  │                              │  │                       │  │
-│  │ • Nhập câu hỏi │  │                              │  │ SmartKnowledgeBuilder │  │
-│  │ • Lịch sử chat │  │                              │  │ • Vietnamese Encoder  │  │
-│  │ • Xem ToT      │  │                              │  │ • BGE-M3 Reranker     │  │
-│  │ • Xem RAG      │  │                              │  │ • ChromaDB            │  │
-│  │ • Cấu hình URL │  │                              │  │ • Semantic Chunking   │  │
-│  └────────────────┘  │                              │  │                       │  │
-│                      │                              │  │ AdvancedReasoningAgent│  │
-│  .env                │                              │  │ • Gemma-2-27B (4-bit) │  │
-│  • API_URL           │                              │  │ • Tree of Thought     │  │
-│  • HF_TOKEN          │                              │  │ • Self-Reflection     │  │
-│  • NGROK_TOKEN       │                              │  │ • Map-Reduce          │  │
-└──────────────────────┘                              │  └───────────────────────┘  │
-                                                      └─────────────────────────────┘
-```
-
-## 🛠️ Công Nghệ Sử Dụng
-
-| Tầng | Công nghệ | Vai trò |
-|---|---|---|
-| **Mô hình ngôn ngữ** | `google/gemma-2-27b-it` | LLM chính (nén 4-bit bằng BitsAndBytes NF4) |
-| **Nhúng văn bản** | `bkai-foundation-models/vietnamese-bi-encoder` | Mã hóa tài liệu & câu hỏi thành vector (tối ưu cho tiếng Việt) |
-| **Chấm điểm lại** | `BAAI/bge-reranker-v2-m3` | Đánh giá lại độ liên quan của các đoạn trích xuất |
-| **CSDL Vector** | ChromaDB | Lưu trữ và tìm kiếm vector nhúng |
-| **Cắt văn bản** | LangChain `SemanticChunker` | Chia tài liệu theo ngữ nghĩa, không theo kích thước cố định |
-| **Đọc tài liệu** | PyPDFLoader, TextLoader, Docx2txtLoader | Đọc file `.pdf`, `.txt`, `.docx` |
-| **API** | FastAPI + Uvicorn | Phục vụ backend dưới dạng REST API |
-| **Đường hầm** | pyngrok (Ngrok) | Mở Colab ra internet công khai |
-| **Giao diện** | Streamlit | Giao diện chat với lịch sử trò chuyện |
-| **Nén mô hình** | BitsAndBytes | Nén mô hình 27B để vừa VRAM của 1 GPU |
-| **GPU Runtime** | Google Colab (H100 / A100) | GPU miễn phí cho suy luận mô hình |
-
-## 📁 Cấu Trúc Dự Án
+### GCP Production (Docker)
 
 ```
-ChatBotColab/
-├── backend.ipynb   # Notebook Google Colab (toàn bộ backend)
-│                   #   Cell 1: Mount Google Drive
-│                   #   Cell 2: Cài đặt tất cả thư viện
-│                   #   Cell 3: SmartKnowledgeBuilder (lõi RAG)
-│                   #   Cell 4: AdvancedReasoningAgent (LLM + ToT)
-│                   #   Cell 5: Nạp LLM bằng HF_TOKEN
-│                   #   Cell 6: Định nghĩa endpoint FastAPI
-│                   #   Cell 7: Xử lý tài liệu vào vector DB
-│                   #   Cell 8: Khởi động Ngrok + Uvicorn
-├── chatbot.py      # Giao diện Streamlit (chạy trên máy local)
-├── .env            # Biến môi trường (token, đường dẫn, cấu hình)
-└── .gitignore      # Bỏ qua .env, __pycache__, vector DB, checkpoints
+┌───────────────────┐     HTTP :8501     ┌──────────────────────────────────┐
+│  Trình duyệt      │ ◄────────────────► │  GCE VM (GPU: NVIDIA L4/T4)     │
+│  (bất kỳ đâu)     │                    │  ┌────────────────────────────┐  │
+└───────────────────┘     HTTP :8000     │  │  Docker Container         │  │
+                      ◄────────────────► │  │                            │  │
+                                         │  │  Streamlit UI (:8501)      │  │
+                                         │  │  FastAPI API  (:8000)      │  │
+                                         │  │  backend.py                │  │
+                                         │  │  • SmartKnowledgeBuilder   │  │
+                                         │  │  • AdvancedReasoningAgent  │  │
+                                         │  │  • Gemma-2-27B (4-bit)     │  │
+                                         │  └────────────────────────────┘  │
+                                         │  Volume: ./data (vector DB)     │
+                                         └──────────────────────────────────┘
 ```
 
 ## 🔄 Quy Trình Hoạt Động
-
-Khi người dùng đặt câu hỏi, hệ thống xử lý theo pipeline sau:
 
 ```
 Câu hỏi người dùng
@@ -303,87 +306,106 @@ Câu hỏi người dùng
 
 ## 🚀 Hướng Dẫn Cài Đặt
 
-### Yêu Cầu
+### 🚀 Cách A — GCP Production (Docker)
+
+#### Yêu Cầu
 
 | Yêu cầu | Mục đích |
 |---|---|
-| Tài khoản [Google Colab](https://colab.research.google.com/) | Chạy backend với GPU miễn phí |
+| Tài khoản [Google Cloud](https://console.cloud.google.com/) có billing | Chạy GCE VM với GPU |
 | [Hugging Face](https://huggingface.co/settings/tokens) token | Tải mô hình Gemma-2-27B |
-| [Ngrok](https://dashboard.ngrok.com/get-started/your-authtoken) auth token | Tạo đường hầm internet từ Colab |
-| Python 3.8+ (trên máy local) | Chạy giao diện Streamlit |
+| [Docker](https://docs.docker.com/get-docker/) + [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) | Chạy container với GPU |
 
-### Bước 1 — Cấu Hình `.env`
+#### Bước 1 — Tạo VM có GPU trên GCE
 
-Tạo file `.env` ở thư mục gốc dự án:
+1. Vào **Compute Engine > VM instances > Create Instance**
+2. Cấu hình:
+   - **Machine type:** `g2-standard-8` (GPU: NVIDIA L4, 24GB VRAM)
+   - **Boot disk:** Deep Learning VM with CUDA 12.x, **100 GB**
+   - **Firewall:** ✅ Allow HTTP, ✅ Allow HTTPS
+3. Thêm firewall rule cho port `8000` (API) và `8501` (UI):
+   - **VPC Network > Firewall > Create Rule** → TCP: `8000, 8501`, Source: `0.0.0.0/0`
 
-```env
-HF_TOKEN=hf_token_huggingface_cua_ban
-NGROK_TOKEN=ngrok_auth_token_cua_ban
-GIT_TOKEN=ghp_github_token_cua_ban
-DATABASE_PATH=/content/drive/MyDrive/chatbotcolab/my_vector_db
-DOC_PATH=/content/drive/MyDrive/chatbotcolab/tai_lieu_cua_ban.pdf
-API_URL=https://url-cua-ban.ngrok-free.dev/api/v1/ask
-```
+#### Bước 2 — Cài đặt trên VM
 
-| Biến | Mô tả |
-|---|---|
-| `HF_TOKEN` | Token truy cập Hugging Face (để tải model bị giới hạn) |
-| `NGROK_TOKEN` | Auth token của Ngrok (để tạo đường hầm công khai) |
-| `GIT_TOKEN` | GitHub personal access token (tùy chọn, cho quản lý phiên bản) |
-| `DATABASE_PATH` | Đường dẫn lưu trữ ChromaDB trên Google Drive |
-| `DOC_PATH` | Đường dẫn đến tài liệu bạn muốn chatbot học |
-| `API_URL` | URL Ngrok công khai của backend đang chạy (cập nhật mỗi phiên) |
-
-### Bước 2 — Chạy Backend trên Google Colab
-
-1. Upload `backend.ipynb` và `.env` lên Google Drive tại `/MyDrive/chatbotcolab/`
-2. Mở `backend.ipynb` bằng Google Colab
-3. Đổi runtime sang **GPU** → chọn **H100** hoặc **A100**
-4. **Chạy tất cả cell** từ trên xuống dưới
-5. Chờ cell cuối in ra URL Ngrok:
-   ```
-   🟢 MÁY CHỦ ĐÃ SẴN SÀNG!
-   🔗 URL Của API: https://xxxx.ngrok-free.dev/api/v1/ask
-   📚 Swagger UI:  https://xxxx.ngrok-free.dev/docs
-   ```
-6. Sao chép URL API — bạn sẽ cần nó cho frontend
-
-### Bước 3 — Chạy Frontend trên Máy Local
+SSH vào VM và chạy:
 
 ```bash
-# Cài đặt thư viện
-pip install streamlit requests python-dotenv
+# Clone dự án
+git clone https://github.com/Quangvu256/chatbotwithcolab.git
+cd chatbotwithcolab
 
-# Khởi chạy giao diện chat
-streamlit run chatbot.py
+# Tạo file .env
+cat > .env << 'EOF'
+HF_TOKEN=hf_token_huggingface_cua_ban
+DATABASE_PATH=./data/vector_db
+DOC_PATH=./data/documents/tai_lieu_cua_ban.pdf
+API_URL=http://localhost:8000/api/v1/ask
+BACKEND_HOST=0.0.0.0
+BACKEND_PORT=8000
+STREAMLIT_PORT=8501
+EOF
+
+# Đặt tài liệu vào data/documents/
+mkdir -p data/documents
+# Upload file PDF/TXT/DOCX vào đây
 ```
 
-Sau đó:
-- **Dán URL Ngrok** vào ô nhập liệu ở thanh bên trái, hoặc
-- **Đặt `API_URL`** trong file `.env` trên máy local (tự động nạp khi khởi chạy)
+#### Bước 3 — Khởi chạy bằng Docker Compose
 
-### Bước 4 — Bắt Đầu Hỏi!
+```bash
+docker compose up -d --build
+```
 
-Gõ câu hỏi vào ô chat. AI sẽ:
-1. Tìm kiếm ngữ cảnh liên quan từ tài liệu của bạn
-2. Suy luận qua nhiều hướng tiếp cận (Tree of Thought)
-3. Tinh chỉnh câu trả lời (Self-Reflection)
-4. Hiển thị câu trả lời cuối cùng, kèm phần mở rộng xem quá trình suy nghĩ và ngữ cảnh trích xuất
+Đợi 5-10 phút để nạp mô hình, sau đó truy cập:
+- 🎨 **Giao diện Chat:** `http://<IP_NGOÀI_CỦA_VM>:8501`
+- 📚 **API Docs:** `http://<IP_NGOÀI_CỦA_VM>:8000/docs`
+- 💚 **Health Check:** `http://<IP_NGOÀI_CỦA_VM>:8000/health`
 
-## 📄 Định Dạng Tài Liệu Hỗ Trợ
+#### Lệnh hữu ích
 
-| Định dạng | Phần mở rộng | Loader sử dụng |
+```bash
+docker compose logs -f        # Xem logs (tiến trình nạp model)
+docker compose restart         # Khởi động lại
+docker compose down            # Dừng hệ thống
+```
+
+#### 💰 Chi phí ước tính (GCP)
+
+| Tài nguyên | Cấu hình | Chi phí (ước tính) |
 |---|---|---|
-| PDF | `.pdf` | `PyPDFLoader` |
-| Văn bản thuần | `.txt` | `TextLoader` |
-| Microsoft Word | `.docx` | `Docx2txtLoader` |
+| `g2-standard-8` (1x L4 GPU) | 8 vCPU, 32GB RAM, 24GB VRAM | ~$1.40/giờ |
+| Boot disk | 100 GB SSD | ~$17/tháng |
+
+> 💡 **Mẹo:** Dùng [Spot VM](https://cloud.google.com/compute/docs/instances/spot) để giảm chi phí ~60-70%.
+
+---
+
+### 🧪 Cách B — Google Colab (Demo)
+
+> Dùng `backend.ipynb` để demo nhanh với GPU miễn phí.
+
+1. Upload `backend.ipynb` và `.env` lên Google Drive tại `/MyDrive/chatbotcolab/`
+2. Mở bằng Colab, đổi runtime sang **GPU (H100/A100)**, chạy tất cả cell
+3. Sao chép URL Ngrok và dán vào sidebar của Streamlit
+4. Chạy `streamlit run chatbot.py` trên máy local
+
+---
+
+## 📡 API Endpoints
+
+| Phương thức | Endpoint | Mô tả |
+|---|---|---|
+| `GET` | `/health` | Kiểm tra trạng thái hệ thống (GPU, LLM, DB) |
+| `POST` | `/api/v1/ask` | Đặt câu hỏi (ToT + RAG reasoning) |
+| `POST` | `/api/v1/index` | Upload & index tài liệu mới (PDF/TXT/DOCX) |
 
 ## ⚠️ Lưu Ý
 
-- **URL Ngrok thay đổi mỗi lần** khởi động lại notebook Colab — nhớ cập nhật lại ở frontend
 - Backend mất khoảng **5–10 phút** để khởi tạo (tải & nạp mô hình 27B)
 - Mỗi câu hỏi có thể mất **30–120 giây** để trả lời do quy trình ToT nhiều bước
-- Khuyến nghị dùng **Colab Pro** để có thời gian chạy dài hơn và GPU tốt hơn
+- Có thể upload tài liệu mới qua giao diện Streamlit (không cần khởi động lại)
+- Chế độ Colab: URL Ngrok thay đổi mỗi lần khởi động lại — nhớ cập nhật ở frontend
 
 ---
 
@@ -393,4 +415,5 @@ This project is for educational and research purposes.
 
 ## 👤 Author
 
-Made with ❤️ using Google Colab & Streamlit
+Made with ❤️ using Google Cloud, Docker & Streamlit
+

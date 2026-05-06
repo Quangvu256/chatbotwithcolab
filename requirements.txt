@@ -1,0 +1,43 @@
+# ==============================================================================
+# ChatBotColab — Python Dependencies
+# ==============================================================================
+# Install with: pip install -r requirements.txt
+# For GPU support, install PyTorch with CUDA first:
+#   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+# ==============================================================================
+
+# --- Core LLM ---
+torch>=2.0.0
+transformers>=4.40.0
+bitsandbytes>=0.43.0
+accelerate>=0.30.0
+
+# --- Embedding & Reranking ---
+sentence-transformers>=2.7.0
+
+# --- RAG Pipeline (LangChain) ---
+langchain>=0.2.0
+langchain-community>=0.2.0
+langchain-experimental>=0.0.60
+langchain-chroma>=0.1.0
+langchain-text-splitters>=0.2.0
+
+# --- Vector Database ---
+chromadb>=0.5.0
+
+# --- Document Loaders ---
+pypdf>=4.0.0
+docx2txt>=0.8
+
+# --- API Server ---
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
+pydantic>=2.0.0
+python-multipart>=0.0.9
+
+# --- Configuration ---
+python-dotenv>=1.0.0
+
+# --- Frontend ---
+streamlit>=1.35.0
+requests>=2.32.0

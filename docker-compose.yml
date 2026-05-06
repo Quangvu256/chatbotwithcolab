@@ -1,0 +1,37 @@
+# ==============================================================================
+# ChatBotColab — Docker Compose
+# ==============================================================================
+# Usage:
+#   docker compose up -d          # Khởi chạy
+#   docker compose logs -f        # Xem logs
+#   docker compose down            # Dừng
+# ==============================================================================
+
+services:
+  chatbot:
+    build: .
+    container_name: chatbot-colab
+    restart: unless-stopped
+
+    # Cấp quyền GPU cho container
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"    # FastAPI API
+      - "${STREAMLIT_PORT:-8501}:8501"  # Streamlit UI
+
+    env_file:
+      - .env
+
+    volumes:
+      # Persist vector DB và tài liệu trên host
+      - ./data:/app/data
+
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all

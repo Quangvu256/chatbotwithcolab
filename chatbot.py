@@ -13,16 +13,59 @@ load_dotenv()
 st.set_page_config(page_title="Vistral ToT RAG Assistant", page_icon="🤖", layout="wide")
 
 # Ưu tiên: .env → sidebar input
-_default_url = os.getenv("API_URL", "")
+_default_url = os.getenv("API_URL", "http://localhost:8000/api/v1/ask")
 
 with st.sidebar:
     st.header("⚙️ Cấu hình")
     API_URL = st.text_input(
-        "API URL (từ Ngrok)",
+        "API URL",
         value=_default_url,
-        placeholder="https://xxx.ngrok-free.dev/api/v1/ask",
-        help="Dán link ngrok từ Colab vào đây (giữ đuôi /api/v1/ask)"
+        placeholder="http://your-vm-ip:8000/api/v1/ask",
+        help="URL của Backend API. Nếu chạy cùng máy, dùng http://localhost:8000/api/v1/ask"
     )
+
+    # --- Upload tài liệu ---
+    st.divider()
+    st.header("📄 Upload Tài liệu")
+    uploaded_file = st.file_uploader(
+        "Chọn file để index vào RAG",
+        type=["pdf", "txt", "docx"],
+        help="Upload file .pdf, .txt, hoặc .docx để chatbot học từ tài liệu mới"
+    )
+
+    if uploaded_file is not None:
+        if st.button("📥 Index tài liệu", type="primary", use_container_width=True):
+            # Lấy base URL (bỏ /api/v1/ask)
+            base_url = API_URL.replace("/api/v1/ask", "")
+            index_url = f"{base_url}/api/v1/index"
+
+            with st.spinner(f"Đang index '{uploaded_file.name}'..."):
+                try:
+                    files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
+                    response = requests.post(index_url, files=files, timeout=300)
+
+                    if response.status_code == 200:
+                        data = response.json()
+                        st.success(f"✅ {data['message']}\n\n📊 Tổng chunks trong DB: {data['chunks_count']}")
+                    else:
+                        st.error(f"❌ Lỗi: {response.status_code} - {response.text}")
+                except requests.exceptions.RequestException as e:
+                    st.error(f"❌ Không thể kết nối: {e}")
+
+    # --- Health Check ---
+    st.divider()
+    if st.button("🩺 Kiểm tra Server", use_container_width=True):
+        base_url = API_URL.replace("/api/v1/ask", "")
+        try:
+            resp = requests.get(f"{base_url}/health", timeout=10)
+            if resp.status_code == 200:
+                health = resp.json()
+                st.success("🟢 Server đang hoạt động")
+                st.json(health)
+            else:
+                st.error(f"🔴 Server trả lỗi: {resp.status_code}")
+        except requests.exceptions.RequestException:
+            st.error("🔴 Không thể kết nối đến server")
 
 st.title("🤖 Trợ lý AI Vistral (Tree of Thought + RAG)")
 
@@ -47,7 +90,7 @@ if prompt := st.chat_input("Hãy hỏi tôi về Data Science..."):
 
     # Kiểm tra API_URL trước khi gửi
     if not API_URL:
-        st.error("⚠️ Chưa cấu hình API URL! Hãy dán link Ngrok vào thanh bên trái.")
+        st.error("⚠️ Chưa cấu hình API URL! Hãy dán link API vào thanh bên trái.")
     else:
         # In câu hỏi của người dùng ra màn hình và lưu vào state
         with st.chat_message("user"):
@@ -56,11 +99,11 @@ if prompt := st.chat_input("Hãy hỏi tôi về Data Science..."):
 
         # Hiển thị hiệu ứng AI đang "suy nghĩ"
         with st.chat_message("assistant"):
-            with st.spinner("Đang suy luận Tree of Thought trên A100..."):
+            with st.spinner("🧠 Đang suy luận Tree of Thought..."):
                 try:
                     # GÓI HÀNG VÀ GỬI ĐI
                     payload = {"question": prompt}
-                    response = requests.post(API_URL, json=payload, timeout=120) # Chờ tối đa 2 phút vì ToT chạy lâu
+                    response = requests.post(API_URL, json=payload, timeout=180)  # Chờ tối đa 3 phút vì ToT chạy lâu
 
                     if response.status_code == 200:
                         # MỞ GÓI HÀNG NHẬN ĐƯỢC
@@ -88,4 +131,4 @@ if prompt := st.chat_input("Hãy hỏi tôi về Data Science..."):
                         st.error(f"Lỗi từ Server: {response.status_code} - {response.text}")
 
                 except requests.exceptions.RequestException as e:
-                    st.error(f"Không thể kết nối đến máy chủ Colab. Hãy kiểm tra lại link Ngrok! Lỗi: {e}")
+                    st.error(f"Không thể kết nối đến máy chủ. Hãy kiểm tra lại API URL! Lỗi: {e}")

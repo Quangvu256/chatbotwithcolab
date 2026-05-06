@@ -1,5 +1,22 @@
+# === Secrets ===
 .env
+
+# === Python ===
 __pycache__/
 *.pyc
-my_vector_db/
+*.pyo
+venv/
+chatbot_env/
+
+# === Data (persisted on host via Docker volume) ===
+data/
+
+# === Jupyter ===
 .ipynb_checkpoints/
+
+# === Logs ===
+*.log
+
+# === IDE ===
+.vscode/
+.idea/
