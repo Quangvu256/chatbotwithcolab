@@ -18,7 +18,7 @@ from pathlib import Path
 
 from sentence_transformers import CrossEncoder
 from langchain_community.document_loaders import PyPDFLoader, TextLoader, Docx2txtLoader
-from langchain_experimental.text_splitter import SemanticChunker
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from dotenv import load_dotenv
@@ -96,10 +96,13 @@ class SmartKnowledgeBuilder:
             raise ValueError(f"Chưa hỗ trợ định dạng: {ext}")
 
         documents = loader.load()
-        print("✂️ Đang cắt tài liệu bằng Semantic Chunking (Cắt theo ngữ nghĩa)...")
+        print("✂️ Đang cắt tài liệu bằng Recursive Chunking (Tốc độ siêu tốc)...")
 
-        text_splitter = SemanticChunker(
-            self.embedding_model, breakpoint_threshold_type="percentile"
+        # Đổi từ Semantic sang Recursive để chạy mượt trên CPU
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=1000,
+            chunk_overlap=200,
+            separators=["\n\n", "\n", ".", " ", ""]
         )
 
         chunks = text_splitter.split_documents(documents)
