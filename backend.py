@@ -225,14 +225,23 @@ class AdvancedReasoningAgent:
     # LOGIC 1: TREE OF THOUGHT (Tư duy cục bộ)
     # ==========================================
     def generate_thoughts(self, query, context, num_thoughts=4):
-        prompt = f"Ngữ cảnh: {context}\nCâu hỏi: {query}\nHãy đưa ra {num_thoughts} hướng phân tích ngắn gọn và khác biệt để trả lời. Liệt kê bắt đầu bằng 'Hướng 1:', 'Hướng 2:'..."
+        prompt = f"Ngữ cảnh: {context}\nCâu hỏi: {query}\nHãy đưa ra {num_thoughts} hướng phân tích ngắn gọn và khác biệt để trả lời. KHÔNG viết lời mở đầu hay dẫn nhập. Viết NGAY LẬP TỨC dưới dạng danh sách:\nHướng 1: ...\nHướng 2: ...\nHướng 3: ...\nHướng 4: ..."
         try:
             raw_text = self._call_llm(prompt, temperature=0.7)
         except Exception as e:
             logger.error("Error generating thoughts", exc_info=True)
             return ["Lỗi khi sinh hướng suy nghĩ."]
             
-        thoughts = [t.strip() for t in raw_text.split("\n") if len(t.strip()) > 10]
+        thoughts = []
+        for line in raw_text.split("\n"):
+            line = line.strip()
+            if line.lower().startswith("hướng") and len(line) > 10:
+                thoughts.append(line)
+                
+        # Fallback nếu AI không dùng từ "Hướng"
+        if not thoughts:
+            thoughts = [t.strip() for t in raw_text.split("\n") if len(t.strip()) > 10]
+            
         return thoughts[:num_thoughts] if thoughts else [raw_text]
 
     def evaluate_thoughts_batch(self, query, thoughts, context):
