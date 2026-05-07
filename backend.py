@@ -224,7 +224,7 @@ class AdvancedReasoningAgent:
     # ==========================================
     # LOGIC 1: TREE OF THOUGHT (Tư duy cục bộ)
     # ==========================================
-    def generate_thoughts(self, query, context, num_thoughts=3):
+    def generate_thoughts(self, query, context, num_thoughts=4):
         prompt = f"Ngữ cảnh: {context}\nCâu hỏi: {query}\nHãy đưa ra {num_thoughts} hướng phân tích ngắn gọn và khác biệt để trả lời. Liệt kê bắt đầu bằng 'Hướng 1:', 'Hướng 2:'..."
         try:
             raw_text = self._call_llm(prompt, temperature=0.7)
@@ -417,7 +417,7 @@ def ask_vistral(request: Request, body: QueryRequest):
         context = global_knowledge_base.retrieve_context(query, top_k_vector=15)
 
         # 2. Suy luận (ToT)
-        thoughts = global_agent.generate_thoughts(query, context, num_thoughts=3)
+        thoughts = global_agent.generate_thoughts(query, context, num_thoughts=4)
         best_thought = global_agent.evaluate_thoughts_batch(
             query, thoughts, context
         )
