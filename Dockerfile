@@ -43,14 +43,11 @@ COPY backend.py .
 COPY chatbot.py .
 COPY startup.sh .
 
-# Tạo thư mục data và phân quyền
-RUN mkdir -p /app/data/vector_db /app/data/documents /app/data/uploads \
-    && chown -R appuser:appuser /app
+# Tạo thư mục data
+RUN mkdir -p /app/data/vector_db /app/data/documents /app/data/uploads
 
 # Quyền chạy cho startup script
 RUN chmod +x startup.sh
-
-USER appuser
 
 # Expose ports: 8000 (FastAPI), 8501 (Streamlit)
 EXPOSE 8000 8501
