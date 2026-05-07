@@ -28,7 +28,7 @@ Two deployment modes:
 
 ```
 ┌───────────────────┐     HTTP :8501     ┌──────────────────────────────────┐
-│  Browser          │ ◄────────────────► │  GCE VM (GPU: NVIDIA L4/T4)     │
+│  Browser          │ ◄────────────────► │  GCE VM (CPU-only via Vertex AI) │
 │  (any device)     │                    │  ┌────────────────────────────┐  │
 └───────────────────┘     HTTP :8000     │  │  Docker Container         │  │
                       ◄────────────────► │  │                            │  │
@@ -37,7 +37,7 @@ Two deployment modes:
                                          │  │  backend.py                │  │
                                          │  │  • SmartKnowledgeBuilder   │  │
                                          │  │  • AdvancedReasoningAgent  │  │
-                                         │  │  • Gemma-3-4B (4-bit)      │  │
+                                         │  │  • Gemini 2.0 Flash API    │  │
                                          │  └────────────────────────────┘  │
                                          │  Volume: ./data (vector DB)     │
                                          └──────────────────────────────────┘
@@ -57,7 +57,7 @@ Two deployment modes:
 
 | Layer | Technology | Role |
 |---|---|---|
-| **LLM** | `google/gemma-3-4b-it` | Main language model (4-bit quantized via BitsAndBytes NF4) |
+| **LLM** | `gemini-2.0-flash` | Main language model (Google Cloud Vertex AI) |
 | **Embedding** | `bkai-foundation-models/vietnamese-bi-encoder` | Encode documents & queries into vectors (optimized for Vietnamese) |
 | **Reranker** | `BAAI/bge-reranker-v2-m3` | Re-score retrieved chunks for higher relevance |
 | **Vector DB** | ChromaDB | Store and search document embeddings |
@@ -65,9 +65,9 @@ Two deployment modes:
 | **Document Loaders** | PyPDFLoader, TextLoader, Docx2txtLoader | Read `.pdf`, `.txt`, `.docx` files |
 | **API** | FastAPI + Uvicorn | Serve the backend as a REST API |
 | **Frontend** | Streamlit | Chat UI with session history & file upload |
-| **Quantization** | BitsAndBytes | Compress 4B model to fit in a single GPU's VRAM |
-| **Container** | Docker + Docker Compose | Reproducible deployment with GPU passthrough |
-| **Runtime** | GCE VM (NVIDIA L4/T4) or Google Colab | GPU for model inference |
+| **Quantization** | None | No local GPU required, API handles it |
+| **Container** | Docker + Docker Compose | Reproducible deployment without GPU requirements |
+| **Runtime** | GCE VM (CPU-only) or Google Colab | Cloud API for model inference |
 
 ## 📁 Project Structure
 
@@ -132,16 +132,16 @@ User Question
 
 | Requirement | Purpose |
 |---|---|
-| [Google Cloud](https://console.cloud.google.com/) account with billing | Run GCE VM with GPU |
-| [Hugging Face](https://huggingface.co/settings/tokens) token | Download Gemma-3-4B model |
-| [Docker](https://docs.docker.com/get-docker/) + [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) | Run containerized app with GPU |
+| [Google Cloud](https://console.cloud.google.com/) account with billing | Run GCE VM and Vertex AI |
+| [Vertex AI API](https://console.cloud.google.com/apis/library/aiplatform.googleapis.com) | Enable Vertex AI API for Gemini 2.0 Flash |
+| [Docker](https://docs.docker.com/get-docker/) | Run containerized app |
 
 #### Step 1 — Create a GCE VM with GPU
 
 1. Go to **Compute Engine > VM instances > Create Instance**
 2. Configuration:
-   - **Machine type:** `g2-standard-8` (GPU: NVIDIA L4, 24GB VRAM)
-   - **Boot disk:** Deep Learning VM with CUDA 12.x, **100 GB**
+   - **Machine type:** `e2-standard-2` (CPU-only)
+   - **Boot disk:** Debian or Ubuntu, **30 GB**
    - **Firewall:** ✅ Allow HTTP, ✅ Allow HTTPS
 3. Add firewall rule for ports `8000` (API) and `8501` (UI):
    - **VPC Network > Firewall > Create Rule** → TCP: `8000, 8501`, Source: `0.0.0.0/0`
@@ -157,7 +157,9 @@ cd chatbotwithcolab
 
 # Create .env
 cat > .env << 'EOF'
-HF_TOKEN=hf_your_huggingface_token
+GCP_PROJECT_ID=your-gcp-project-id
+GCP_LOCATION=us-central1
+GEMINI_MODEL=gemini-2.0-flash
 DATABASE_PATH=./data/vector_db
 DOC_PATH=./data/documents/your_document.pdf
 API_URL=http://localhost:8000/api/v1/ask
@@ -194,10 +196,11 @@ docker compose down            # Stop everything
 
 | Resource | Spec | Cost (approx.) |
 |---|---|---|
-| `g2-standard-8` (1x L4 GPU) | 8 vCPU, 32GB RAM, 24GB VRAM | ~$1.40/hr |
-| Boot disk | 100 GB SSD | ~$17/mo |
+| `e2-standard-2` | 2 vCPU, 8GB RAM | ~$0.07/hr |
+| Boot disk | 30 GB | ~$1.50/mo |
+| Vertex AI | Gemini API calls | Variable (very cheap) |
 
-> 💡 **Tip:** Use [Spot VMs](https://cloud.google.com/compute/docs/instances/spot) to reduce cost by ~60-70%.
+> 💡 **Tip:** Use [Spot VMs](https://cloud.google.com/compute/docs/instances/spot) to reduce compute cost by ~60-70%.
 
 ---
 
@@ -219,6 +222,7 @@ docker compose down            # Stop everything
 | `GET` | `/health` | System health check (GPU, LLM, DB status) |
 | `POST` | `/api/v1/ask` | Ask a question (ToT + RAG reasoning) |
 | `POST` | `/api/v1/index` | Upload & index a new document (PDF/TXT/DOCX) |
+| `POST` | `/api/v1/summarize` | Summarize all documents using Map-Reduce |
 
 ## 📄 Supported Documents
 
@@ -230,7 +234,7 @@ docker compose down            # Stop everything
 
 ## ⚠️ Notes
 
-- The backend takes **3–5 minutes** to initialize (downloading & loading the 4B model)
+- The backend takes **~30 seconds** to initialize (models are pre-cached)
 - Each question may take **30–120 seconds** to answer due to the multi-step ToT reasoning
 - You can upload new documents via the Streamlit sidebar (no restart needed)
 - For Colab mode: The Ngrok URL changes every restart — update it in the frontend
@@ -256,7 +260,7 @@ Hai chế độ triển khai:
 
 ```
 ┌───────────────────┐     HTTP :8501     ┌──────────────────────────────────┐
-│  Trình duyệt      │ ◄────────────────► │  GCE VM (GPU: NVIDIA L4/T4)     │
+│  Trình duyệt      │ ◄────────────────► │  GCE VM (CPU-only via Vertex AI) │
 │  (bất kỳ đâu)     │                    │  ┌────────────────────────────┐  │
 └───────────────────┘     HTTP :8000     │  │  Docker Container         │  │
                       ◄────────────────► │  │                            │  │
@@ -265,7 +269,7 @@ Hai chế độ triển khai:
                                          │  │  backend.py                │  │
                                          │  │  • SmartKnowledgeBuilder   │  │
                                          │  │  • AdvancedReasoningAgent  │  │
-                                         │  │  • Gemma-3-4B (4-bit)      │  │
+                                         │  │  • Gemini 2.0 Flash API    │  │
                                          │  └────────────────────────────┘  │
                                          │  Volume: ./data (vector DB)     │
                                          └──────────────────────────────────┘
@@ -312,16 +316,16 @@ Câu hỏi người dùng
 
 | Yêu cầu | Mục đích |
 |---|---|
-| Tài khoản [Google Cloud](https://console.cloud.google.com/) có billing | Chạy GCE VM với GPU |
-| [Hugging Face](https://huggingface.co/settings/tokens) token | Tải mô hình Gemma-3-4B |
-| [Docker](https://docs.docker.com/get-docker/) + [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) | Chạy container với GPU |
+| Tài khoản [Google Cloud](https://console.cloud.google.com/) có billing | Chạy GCE VM và Vertex AI |
+| [Vertex AI API](https://console.cloud.google.com/apis/library/aiplatform.googleapis.com) | Enable Vertex AI API cho Gemini 2.0 Flash |
+| [Docker](https://docs.docker.com/get-docker/) | Chạy container |
 
 #### Bước 1 — Tạo VM có GPU trên GCE
 
 1. Vào **Compute Engine > VM instances > Create Instance**
 2. Cấu hình:
-   - **Machine type:** `g2-standard-8` (GPU: NVIDIA L4, 24GB VRAM)
-   - **Boot disk:** Deep Learning VM with CUDA 12.x, **100 GB**
+   - **Machine type:** `e2-standard-2` (CPU-only)
+   - **Boot disk:** Debian hoặc Ubuntu, **30 GB**
    - **Firewall:** ✅ Allow HTTP, ✅ Allow HTTPS
 3. Thêm firewall rule cho port `8000` (API) và `8501` (UI):
    - **VPC Network > Firewall > Create Rule** → TCP: `8000, 8501`, Source: `0.0.0.0/0`
@@ -337,7 +341,9 @@ cd chatbotwithcolab
 
 # Tạo file .env
 cat > .env << 'EOF'
-HF_TOKEN=hf_token_huggingface_cua_ban
+GCP_PROJECT_ID=your-gcp-project-id
+GCP_LOCATION=us-central1
+GEMINI_MODEL=gemini-2.0-flash
 DATABASE_PATH=./data/vector_db
 DOC_PATH=./data/documents/tai_lieu_cua_ban.pdf
 API_URL=http://localhost:8000/api/v1/ask
@@ -374,10 +380,11 @@ docker compose down            # Dừng hệ thống
 
 | Tài nguyên | Cấu hình | Chi phí (ước tính) |
 |---|---|---|
-| `g2-standard-8` (1x L4 GPU) | 8 vCPU, 32GB RAM, 24GB VRAM | ~$1.40/giờ |
-| Boot disk | 100 GB SSD | ~$17/tháng |
+| `e2-standard-2` | 2 vCPU, 8GB RAM | ~$0.07/giờ |
+| Boot disk | 30 GB | ~$1.50/tháng |
+| Vertex AI | Gọi Gemini API | Thay đổi (rất rẻ) |
 
-> 💡 **Mẹo:** Dùng [Spot VM](https://cloud.google.com/compute/docs/instances/spot) để giảm chi phí ~60-70%.
+> 💡 **Mẹo:** Dùng [Spot VM](https://cloud.google.com/compute/docs/instances/spot) để giảm chi phí compute ~60-70%.
 
 ---
 
@@ -399,10 +406,11 @@ docker compose down            # Dừng hệ thống
 | `GET` | `/health` | Kiểm tra trạng thái hệ thống (GPU, LLM, DB) |
 | `POST` | `/api/v1/ask` | Đặt câu hỏi (ToT + RAG reasoning) |
 | `POST` | `/api/v1/index` | Upload & index tài liệu mới (PDF/TXT/DOCX) |
+| `POST` | `/api/v1/summarize` | Tóm tắt tài liệu bằng Map-Reduce |
 
 ## ⚠️ Lưu Ý
 
-- Backend mất khoảng **3–5 phút** để khởi tạo (tải & nạp mô hình 4B)
+- Backend mất khoảng **~30 giây** để khởi tạo (models đã được pre-cached)
 - Mỗi câu hỏi có thể mất **30–120 giây** để trả lời do quy trình ToT nhiều bước
 - Có thể upload tài liệu mới qua giao diện Streamlit (không cần khởi động lại)
 - Chế độ Colab: URL Ngrok thay đổi mỗi lần khởi động lại — nhớ cập nhật ở frontend

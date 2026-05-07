@@ -3,6 +3,7 @@ import requests
 import json
 import os
 from dotenv import load_dotenv
+from urllib.parse import urlparse
 
 # ==========================================
 # 1. CẤU HÌNH KẾT NỐI
@@ -35,14 +36,14 @@ with st.sidebar:
 
     if uploaded_file is not None:
         if st.button("📥 Index tài liệu", type="primary", use_container_width=True):
-            # Lấy base URL (bỏ /api/v1/ask)
-            base_url = API_URL.replace("/api/v1/ask", "")
+            parsed = urlparse(API_URL)
+            base_url = f"{parsed.scheme}://{parsed.netloc}"
             index_url = f"{base_url}/api/v1/index"
 
             with st.spinner(f"Đang index '{uploaded_file.name}'..."):
                 try:
                     files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
-                    response = requests.post(index_url, files=files, timeout=300)
+                    response = st.session_state.http_session.post(index_url, files=files, timeout=300)
 
                     if response.status_code == 200:
                         data = response.json()
@@ -55,9 +56,10 @@ with st.sidebar:
     # --- Health Check ---
     st.divider()
     if st.button("🩺 Kiểm tra Server", use_container_width=True):
-        base_url = API_URL.replace("/api/v1/ask", "")
+        parsed = urlparse(API_URL)
+        base_url = f"{parsed.scheme}://{parsed.netloc}"
         try:
-            resp = requests.get(f"{base_url}/health", timeout=10)
+            resp = st.session_state.http_session.get(f"{base_url}/health", timeout=10)
             if resp.status_code == 200:
                 health = resp.json()
                 st.success("🟢 Server đang hoạt động")
@@ -76,6 +78,9 @@ st.title("🤖 Trợ lý AI Vistral (Tree of Thought + RAG)")
 # Nên ta phải dùng session_state để lưu lại lịch sử chat, nếu không nó sẽ quên sạch.
 if "messages" not in st.session_state:
     st.session_state.messages = []
+
+if "http_session" not in st.session_state:
+    st.session_state.http_session = requests.Session()
 
 # Hiển thị lại các tin nhắn cũ mỗi khi giao diện load lại
 for message in st.session_state.messages:
@@ -103,7 +108,7 @@ if prompt := st.chat_input("Hãy hỏi tôi về Data Science..."):
                 try:
                     # GÓI HÀNG VÀ GỬI ĐI
                     payload = {"question": prompt}
-                    response = requests.post(API_URL, json=payload, timeout=180)  # Chờ tối đa 3 phút vì ToT chạy lâu
+                    response = st.session_state.http_session.post(API_URL, json=payload, timeout=180)  # Chờ tối đa 3 phút vì ToT chạy lâu
 
                     if response.status_code == 200:
                         # MỞ GÓI HÀNG NHẬN ĐƯỢC

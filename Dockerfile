@@ -21,22 +21,42 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Pre-download models vào cache (tránh download mỗi lần restart)
+RUN python -c "\
+from sentence_transformers import SentenceTransformer; \
+SentenceTransformer('bkai-foundation-models/vietnamese-bi-encoder'); \
+print('✅ Embedding model cached')"
+
+RUN python -c "\
+from sentence_transformers import CrossEncoder; \
+CrossEncoder('BAAI/bge-reranker-v2-m3'); \
+print('✅ Reranker model cached')"
+
+# Cleanup build tools (không cần ở runtime)
+RUN apt-get purge -y build-essential && apt-get autoremove -y
+
+# Security: non-root user
+RUN useradd -m -s /bin/bash appuser
+
 # Copy mã nguồn
 COPY backend.py .
 COPY chatbot.py .
 COPY startup.sh .
 
-# Tạo thư mục data
-RUN mkdir -p /app/data/vector_db /app/data/documents /app/data/uploads
+# Tạo thư mục data và phân quyền
+RUN mkdir -p /app/data/vector_db /app/data/documents /app/data/uploads \
+    && chown -R appuser:appuser /app
 
 # Quyền chạy cho startup script
 RUN chmod +x startup.sh
+
+USER appuser
 
 # Expose ports: 8000 (FastAPI), 8501 (Streamlit)
 EXPOSE 8000 8501
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
 # Entry point

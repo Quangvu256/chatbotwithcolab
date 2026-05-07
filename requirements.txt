@@ -34,6 +34,10 @@ python-multipart>=0.0.9
 # --- Configuration ---
 python-dotenv>=1.0.0
 
+# --- Production ---
+tenacity>=8.2.0
+slowapi>=0.1.9
+
 # --- Frontend ---
 streamlit>=1.35.0
 requests>=2.32.0

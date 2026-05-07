@@ -8,6 +8,16 @@
 
 set -e
 
+# Graceful shutdown: forward signals đến backend process
+cleanup() {
+    echo "🛑 Đang tắt hệ thống..."
+    kill $BACKEND_PID 2>/dev/null
+    wait $BACKEND_PID 2>/dev/null
+    echo "✅ Đã tắt sạch."
+    exit 0
+}
+trap cleanup SIGTERM SIGINT
+
 echo ""
 echo "============================================================"
 echo "🚀 ChatBotColab — Khởi động hệ thống (Vertex AI Edition)"
