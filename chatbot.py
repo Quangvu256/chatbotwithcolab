@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 load_dotenv()
 
 # set_page_config PHẢI là lệnh Streamlit đầu tiên
-st.set_page_config(page_title="Vistral ToT RAG Assistant", page_icon="🤖", layout="wide")
+st.set_page_config(page_title="Vistral ToT RAG Assistant", page_icon="🤖", layout="centered", initial_sidebar_state="auto")
 
 # Ưu tiên: .env → sidebar input
 _default_url = os.getenv("API_URL", "http://localhost:8000/api/v1/ask")
