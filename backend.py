@@ -401,7 +401,7 @@ async def health_check():
 
 @app.post("/api/v1/ask", response_model=QueryResponse)
 @limiter.limit("10/minute")
-def ask_vistral(request: QueryRequest, req: Request):
+def ask_vistral(request: Request, body: QueryRequest):
     """Hỏi chatbot — sử dụng RAG + Tree of Thought + Self-Reflection (Sync handler)"""
     try:
         if global_agent is None:
@@ -410,7 +410,7 @@ def ask_vistral(request: QueryRequest, req: Request):
                 detail="Gemini API chưa được kết nối. Hãy kiểm tra GCP_PROJECT_ID trong .env",
             )
 
-        query = request.question
+        query = body.question
         logger.info("📨 [API] Nhận câu hỏi: '%s'", query[:100])
 
         # 1. Trích xuất kiến thức (RAG)
