@@ -219,8 +219,14 @@ class AdvancedReasoningAgent:
                 temperature=temperature,
             ),
         )
-        return response.text.strip()
-
+        
+        # Xử lý trường hợp response.text bị None (do Safety Filters của Google chặn)
+        if response.text is not None:
+            return response.text.strip()
+            
+        logger.warning("LLM response text is None. Candidate finish reason: %s", 
+                       response.candidates[0].finish_reason if response.candidates else "Unknown")
+        return "Xin lỗi, nội dung bị bộ lọc an toàn của Google từ chối trả lời."
     # ==========================================
     # LOGIC 1: TREE OF THOUGHT (Tư duy cục bộ)
     # ==========================================
