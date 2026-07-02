@@ -425,5 +425,5 @@ This project is for educational and research purposes.
 
 Made with ❤️ using Google Cloud, Docker & Streamlit
 
-## Link demo : http://34.27.238.248:8501
+
 
