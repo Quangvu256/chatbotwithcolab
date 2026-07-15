@@ -1,7 +1,7 @@
 # ==============================================================================
-# ChatBotColab — Docker Compose (Vertex AI Edition)
+# ChatBotColab — Docker Compose (Google AI Studio Edition)
 # ==============================================================================
-# No GPU required!
+# No GPU required! Only needs a GEMINI_API_KEY in .env
 #
 # Usage:
 #   docker compose up -d          # Khởi chạy
@@ -26,7 +26,7 @@ services:
       # Persist vector DB và tài liệu trên host
       - ./data:/app/data
 
-    # Resource limits cho GCP
+    # Resource limits & GPU config
     deploy:
       resources:
         limits:
@@ -35,6 +35,10 @@ services:
         reservations:
           memory: 4G
           cpus: "2.0"
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
     # Logging config cho GCP Cloud Logging
     logging:

@@ -1,14 +1,15 @@
 # ==============================================================================
-# ChatBotColab — Python Dependencies (Vertex AI Edition)
+# ChatBotColab — Python Dependencies (Google AI Studio Edition)
 # ==============================================================================
-# No GPU required! All LLM inference via Google Cloud Vertex AI.
+# No GPU required! All LLM inference via Google AI Studio API Key.
 # Install with: pip install -r requirements.txt
 # ==============================================================================
 
-# --- Gemini API (via Vertex AI) ---
+# --- Gemini API (via Google AI Studio) ---
 google-genai>=1.0.0
 
-# --- Embedding & Reranking (runs on CPU) ---
+# --- Embedding & Reranking (GPU accelerated) ---
+torch>=2.0.0
 sentence-transformers>=2.7.0
 
 # --- RAG Pipeline (LangChain) ---

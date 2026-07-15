@@ -1,9 +1,9 @@
 #!/bin/bash
 # ==============================================================================
-# ChatBotColab — Startup Script (Vertex AI Edition)
+# ChatBotColab — Startup Script (Google AI Studio Edition)
 # ==============================================================================
 # Khởi chạy cả Backend (FastAPI) và Frontend (Streamlit) trong cùng container.
-# Không cần GPU — LLM inference qua Vertex AI API.
+# Không cần GPU — LLM inference qua Google AI Studio API.
 # ==============================================================================
 
 set -e
@@ -20,7 +20,7 @@ trap cleanup SIGTERM SIGINT
 
 echo ""
 echo "============================================================"
-echo "🚀 ChatBotColab — Khởi động hệ thống (Vertex AI Edition)"
+echo "🚀 ChatBotColab — Khởi động hệ thống (Google AI Studio Edition)"
 echo "============================================================"
 echo ""
 

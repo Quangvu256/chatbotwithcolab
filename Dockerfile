@@ -1,7 +1,7 @@
 # ==============================================================================
-# ChatBotColab — Docker Image (Vertex AI Edition)
+# ChatBotColab — Docker Image (Google AI Studio Edition)
 # ==============================================================================
-# No GPU required! Much lighter than the CUDA-based image.
+# No GPU required! Only needs a GEMINI_API_KEY in .env
 #
 # Build:  docker build -t chatbot-colab .
 # Run:    docker run -p 8000:8000 -p 8501:8501 --env-file .env chatbot-colab
